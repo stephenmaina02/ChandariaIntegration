@@ -71,7 +71,8 @@ class OrderControllerRefactored extends Controller
     }
     public function orderSaveResponse($order, $message, $code)
     {
-        return ['transaction_reference' => $order['id'], 'transaction_number' => $order['id'], 'message' => $message, 'code' => $code, 'transaction_id' => substr($order['transaction_id'], 3), 'createdate' => Carbon::now()];
+        $detail = DB::table('sfaorders')->where('id', $order['id'])->first();
+        return ['transaction_reference' => $detail->sage_ref ?? $order['id'], 'transaction_number' => $order['id'], 'message' => $message, 'code' => $code, 'transaction_id' => substr($order['transaction_id'], 3), 'createdate' => Carbon::now()];
     }
     public function postOrdersToStagingAndSage(StoreOrderRequest $request)
     {
@@ -87,15 +88,19 @@ class OrderControllerRefactored extends Controller
         $orderService = new OrderService();
         $orderHasBeenSaved = $orderService->saveData($orderData, $this->orderLines($orderData));
         if ($orderHasBeenSaved) {
-            // $sageStatus = $orderService->saveToSage($orderData);
-            // if ($sageStatus['status']) {
-            //     DB::table('sfaorders')->where('transaction_id', $updated_trans_id_value)->update(['status' => 1, 'updated_at' => Carbon::now()]);
-            //     // DB::update("update sfaorders set status = 1, updated_at='".Carbon::now()."' where transaction_id = ?", ["'".$updated_trans_id_value."'"]);
-            //     return $this->orderSaveResponse($orderData, $sageStatus['message'], 0);
-            // }
-            // else {
-            //     return $this->orderSaveResponse($orderData, $sageStatus['message'], 0);
-            // }
+            $sageStatus = $orderService->postOrderToSage($orderData);
+            if ($sageStatus['status'] && !empty($sageStatus['data'])) {
+                DB::table('sfaorders')->where('transaction_id', $updated_trans_id_value)->update([
+                    'status' => 1, 
+                    'updated_at' => Carbon::now(),
+                    'sage_ref' => $sageStatus['data'],
+                    'sat_sync' => 1
+                ]);
+                return $this->orderSaveResponse($orderData, 'SUCCESS', 0);
+            }
+            else {
+                Log::error('Sage response error: '.$sageStatus['message']);
+            }
             return $this->orderSaveResponse($orderData, 'SUCCESS', 0);
         }
         else {

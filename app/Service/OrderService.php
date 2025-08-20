@@ -2,13 +2,16 @@
 
 namespace App\Service;
 
-use App\Http\Resources\Order;
+use Exception;
+use GuzzleHttp\Client;
 use App\Models\StkItem;
 use App\Models\ItemList;
 use App\Models\TaxRateType;
+use App\Http\Resources\Order;
 use Illuminate\Support\Carbon;
 use App\Models\Order as Orders;
 use App\Models\CustomerPriceList;
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Facades\DB;
 
 class OrderService
@@ -148,6 +151,61 @@ class OrderService
         }
         catch(\Exception $ex){
             \Log::error('Sage Order num error: '.$ex->getMessage());
+        }
+    }
+
+    public function postOrderToSage($orderData)
+    {
+        try {
+            $url = env('SAGE_API_URL', 'http://localhost:8094/api/order/create');
+
+            $client = new Client(['verify' => false]);
+            $headers = [
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json'
+            ];
+
+            $response = $client->request('POST', $url, [
+                'headers' => $headers,
+                'json' => [
+                    'customer_code'    => $orderData['customer_code'],
+                    'discount'         => $orderData['discount_rate'],
+                    'external_number'  => $orderData['transaction_id'],
+                    'sales_rep'        => $orderData['user_code'],
+                    'item_list'        => $orderData['item_list'] ?? []
+                ]
+            ]);
+
+            $body = json_decode((string) $response->getBody(), true);
+
+            if ($response->getStatusCode() == 200) {
+                return [
+                    'status'  => true,
+                    'data'    => $body['data'] ?? $body,
+                    'message' => $body['message'] ?? 'SUCCESS'
+                ];
+            } else {
+                return [
+                    'status'  => false,
+                    'message' => $body['error_message'] ?? 'Unexpected error occurred'
+                ];
+            }
+        } catch (RequestException $ex) {
+            if ($ex->hasResponse()) {
+                $errorBody = (string) $ex->getResponse()->getBody();
+                $errorData = json_decode($errorBody, true);
+
+                $message = $errorData['error_message']
+                    ?? $errorData['message']
+                    ?? $errorBody; // fallback to raw body if not JSON
+            } else {
+                $message = $ex->getMessage();
+            }
+
+            return [
+                'status'  => false,
+                'message' => $message
+            ];
         }
     }
 }

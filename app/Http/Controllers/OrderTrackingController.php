@@ -16,7 +16,12 @@ class OrderTrackingController extends Controller
     public function getOrderTrackerFromSage()
     {
         $transactions = DB::select('SELECT i.OrderNum,i. ExtOrderNum,i.Description,i.InvNum_dModifiedDate,i.AutoIndex,i.InvDate,i.InvNumber,i.DocState, c.Account FROM ' . env("SAGE_HOST_DB_NAME") . 'InvNum i inner join ' . env("SAGE_HOST_DB_NAME") . 'Client c on i.AccountID=c.DCLink
-        where ExtOrderNum in (SELECT transaction_id FROM SFAOrders) AND DocState>1');
+        where DocState>1
+        AND DocType IN (1,4) 
+        AND i.InvNumber IS NOT NULL 
+        AND i.InvNumber <> \'\'
+        AND i.OrderDate >= CAST(DATEADD(DAY, -4, GETDATE()) AS DATE)');
+        //  ExtOrderNum in (SELECT transaction_id FROM SFAOrders) AND
         if (!is_null($transactions)) {
             foreach ($transactions as $trans) {
                 $status = '';
@@ -73,7 +78,7 @@ class OrderTrackingController extends Controller
         $client = new Client(['verify' => false]);
         $acc = new AccessToken();
         $accessToken = $acc->getTokenFromSFA();
-        $orderStatus = DB::selectOne("select * from [PevOrderTracking] where status<>'Order' AND [insertFlag] = 0 AND [updateFlag] = 0 OR [insertFlag] = 1 AND [updateFlag] = 0  order by created_at desc");
+        $orderStatus = DB::selectOne("select * from [PevOrderTracking] where status<>'Order' AND [insertFlag] = 0 AND [updateFlag] = 0 OR [insertFlag] = 1 AND [updateFlag] = 0 order by created_at desc");
         if (!is_null($orderStatus)) {
             $headers = [
                 'Authorization' => 'Bearer ' . $accessToken,
@@ -85,7 +90,7 @@ class OrderTrackingController extends Controller
             $response = $client->request('POST', env('SFA_BASE_URL') . '/api/v1/sap/sap-track-order', [
                 'headers' => $headers,
                 'json' => [
-                    'transaction_id' => substr($orderStatus->transaction_id, 0, 3)=='CHA' ?  substr($orderStatus->transaction_id, 3) : substr($orderStatus->transaction_id, 6),
+                    'transaction_id' => substr($orderStatus->transaction_id, 0, 6)=='SATCHA' ?  substr($orderStatus->transaction_id, 6) : null,
                     'doc_num' => $orderStatus->doc_num,
                     'item_list' => json_decode($orderStatus->item_list, true),
                     'date' => $orderStatus->date,
@@ -99,6 +104,12 @@ class OrderTrackingController extends Controller
                 $updateOrderTracking = OrderTracking::find($orderStatus->id);
                 $updateOrderTracking->insertFlag = 1;
                 $updateOrderTracking->updateFlag = 1;
+                $updateOrderTracking->updated_at = Carbon::now();
+                $updateOrderTracking->save();
+            }
+             if ($response->getStatusCode() >= 400 && $response->getStatusCode()<=500) {
+                $updateOrderTracking->insertFlag = 2;
+                $updateOrderTracking->updateFlag = 2;
                 $updateOrderTracking->updated_at = Carbon::now();
                 $updateOrderTracking->save();
             }

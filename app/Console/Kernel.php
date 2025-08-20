@@ -40,12 +40,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('command:pushnewcustomerstosfa')->everyThreeMinutes()->withoutOverlapping();
         $schedule->command('command:pushnewproducttosfa')->everyFiveMinutes()->withoutOverlapping();
        //$schedule->command('command:pushdeliverytosfa')->everyTwoMinutes()->withoutOverlapping();
-        $schedule->command('command:pushorderstatustosfa')->everyTwoMinutes()->withoutOverlapping();
+        $schedule->command('command:pushorderstatustosfa')->everyThreeMinutes()->withoutOverlapping();
         //$schedule->command('command:getdeliverydetailsfromsage')->everyTwoMinutes()->withoutOverlapping();
         $schedule->command('command:getproductsfromsage')->everyTenMinutes()->withoutOverlapping();
         $schedule->command('command:getcustomersfromsage')->everyTenminutes()->withoutOverlapping();
         // $schedule->command('command:failedordersageresync')->hourly()->withoutOverlapping();
-        $schedule->command('command:pushpromotiontosfa')->everyFiveMinutes()->withoutOverlapping();
+        $schedule->command('command:pushpromotiontosfa')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('command:getpromotiontosfa')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('command:pushorderresponsetosfa')->everyTwoMinutes()->withoutOverlapping();
         $schedule->command('command:getpricelistsfromsage')->hourly()->withoutOverlapping();
