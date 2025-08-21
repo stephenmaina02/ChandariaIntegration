@@ -8,6 +8,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\MasterFileController;
+use App\Http\Controllers\PromotionV1Controller;
 use App\Http\Controllers\BranchTrackingController;
 use App\Http\Controllers\OrderControllerRefactored;
 
@@ -37,7 +38,7 @@ Route::group(['middleware' => 'client'],  function () {
     Route::get('pev/customers', [MasterFileController::class, 'getCustomers']);
 	Route::post('pev/products', [MasterFileController::class, 'getFilteredProduct']);
     Route::post('pev/payments', [PaymentController::class, 'saveToStaging']);
-
+    Route::get('pev/promotions', [PromotionV1Controller::class, 'getCustomerPrices']);
 });
 Route::post('login', [AuthController::class, 'login']);
 Route::get('pev/order/{transaction_id}', [OrderController::class, 'postBranchOrders'])->name('branchOrders');
