@@ -70,8 +70,8 @@ class PromotionV1Controller extends Controller
         $lastPage = (int) ceil($total / $perPage);
 
         return response()->json([
-            'organization_code' => 'ZCP1',
-            'client_code'       => 'DEMO',
+            'organization_code' => 'CHANDARIA',
+            'client_code'       => 'CHANDARIA',
             'customer_prices'   => $results,
             'pagination' => [
                 'current_page'   => $page,
