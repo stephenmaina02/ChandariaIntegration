@@ -77,7 +77,7 @@ class OrderTrackingController extends Controller
     }
     public function pushOrderStatus()
     {
-        $this->getOrderTrackerFromSage();
+        // $this->getOrderTrackerFromSage();
         $client = new Client(['verify' => false]);
         $acc = new AccessToken();
         $accessToken = $acc->getTokenFromSFA();

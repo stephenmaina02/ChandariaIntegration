@@ -26,6 +26,7 @@ class Kernel extends ConsoleKernel
         Commands\PushPromotion::class,
         Commands\GetPricelists::class,
         Commands\TruncatePricelist::class,
+        Commands\GetOrderStatusFromSage::class,
 
     ];
 
@@ -40,7 +41,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('command:pushnewcustomerstosfa')->everyThreeMinutes()->withoutOverlapping();
         $schedule->command('command:pushnewproducttosfa')->everyFiveMinutes()->withoutOverlapping();
        //$schedule->command('command:pushdeliverytosfa')->everyTwoMinutes()->withoutOverlapping();
-        $schedule->command('command:pushorderstatustosfa')->everyThreeMinutes()->withoutOverlapping();
+        $schedule->command('command:pushorderstatustosfa')->everyMinute()->withoutOverlapping();
         //$schedule->command('command:getdeliverydetailsfromsage')->everyTwoMinutes()->withoutOverlapping();
         $schedule->command('command:getproductsfromsage')->everyTenMinutes()->withoutOverlapping();
         $schedule->command('command:getcustomersfromsage')->everyTenminutes()->withoutOverlapping();
@@ -50,6 +51,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('command:pushorderresponsetosfa')->everyTwoMinutes()->withoutOverlapping();
         $schedule->command('command:getpricelistsfromsage')->hourly()->withoutOverlapping();
         $schedule->command('command:truncate_pricelist')->dailyAt('00:17')->withoutOverlapping();
+        $schedule->command('command:getorderstatusfromsage')->everyTenMinutes()->withoutOverlapping();
 
     }
     /**
