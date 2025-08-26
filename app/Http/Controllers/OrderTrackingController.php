@@ -51,28 +51,99 @@ class OrderTrackingController extends Controller
                 if (!is_null($orderTrackerStatus)) {
                     if (strtotime($orderTrackerStatus->sage_modify_time) != strtotime($trans->InvNum_dModifiedDate) && $orderTrackerStatus->status != 'Invoiced') {
                         $query = OrderTracking::where('transaction_id', $trans->ExtOrderNum)->first()->update([
-                            'status' => $trackerStatus, 'item_list' => $encoded_items,
-                            'date' => $trans->InvDate, 'sage_modify_time' => $trans->InvNum_dModifiedDate, 'updated_at' => $date, 'updateFlag' => 0, 'doc_num' => $trans->InvNumber
+                            'status' => $trackerStatus,
+                            'item_list' => $encoded_items,
+                            'date' => $trans->InvDate,
+                            'sage_modify_time' => $trans->InvNum_dModifiedDate,
+                            'updated_at' => $date,
+                            'updateFlag' => 0,
+                            'doc_num' => $trans->InvNumber
                         ]);
                         Log::info("Order tracker Records Updated $trans->ExtOrderNum");
-                    // $query = DB::update("update PevOrderTracking set status='$trackerStatus',item_list='$encoded_items',date='$trans->InvDate',sage_modify_time='$trans->InvNum_dModifiedDate', updated_at='$date', updateFlag=0, doc_num='$trans->InvNumber' where transaction_id = ?", ["'".$trans->ExtOrderNum."'"]);
+                        // $query = DB::update("update PevOrderTracking set status='$trackerStatus',item_list='$encoded_items',date='$trans->InvDate',sage_modify_time='$trans->InvNum_dModifiedDate', updated_at='$date', updateFlag=0, doc_num='$trans->InvNumber' where transaction_id = ?", ["'".$trans->ExtOrderNum."'"]);
 
                     }
-                }
-                else {
+                } else {
                     $query = DB::insert(
                         'insert into PevOrderTracking (transaction_id,doc_num,status,item_list,sage_modify_time, created_at,updated_at, customer_code,date) values (?,?,?,?,?,?,?,?,?)',
-                    [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encoded_items, $trans->InvNum_dModifiedDate, $date, $date, $trans->Account, $trans->InvDate]
+                        [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encoded_items, $trans->InvNum_dModifiedDate, $date, $date, $trans->Account, $trans->InvDate]
                     );
                     if ($query)
                         Log::info("Order tracker records inserted");
                 }
             }
-        }
-        else
+        } else
             Log::info('All Orders/Invoices already synced from Sage');
     }
     public function pushOrderStatus()
+    {
+        $this->getOrderTrackerFromSage();
+        $client = new Client(['verify' => false]);
+        $acc = new AccessToken();
+        $accessToken = $acc->getTokenFromSFA();
+
+        $orderStatus = DB::selectOne("select * from [PevOrderTracking] 
+        where status<>'Order' AND [insertFlag] = 0 AND [updateFlag] = 0 
+           OR [insertFlag] = 1 AND [updateFlag] = 0 
+        order by created_at desc");
+
+        if (!is_null($orderStatus)) {
+            try {
+                $headers = [
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Accept' => 'application/json',
+                    'Content-Type' => 'application/json'
+                ];
+
+                $response = $client->request('POST', env('SFA_BASE_URL') . '/api/v1/sap/sap-track-order', [
+                    'headers' => $headers,
+                    'json' => [
+                        'transaction_id' => substr($orderStatus->transaction_id, 0, 6) == 'SATCHA'
+                            ? substr($orderStatus->transaction_id, 6)
+                            : null,
+                        'doc_num'       => $orderStatus->doc_num,
+                        'item_list'     => json_decode($orderStatus->item_list, true),
+                        'date'          => $orderStatus->date,
+                        'status'        => $orderStatus->status,
+                        'customer_code' => $orderStatus->customer_code
+                    ]
+                ]);
+
+                if ($response->getStatusCode() == 200) {
+                    $updateOrderTracking = OrderTracking::find($orderStatus->id);
+                    $updateOrderTracking->insertFlag = 1;
+                    $updateOrderTracking->updateFlag = 1;
+                    $updateOrderTracking->updated_at = Carbon::now();
+                    $updateOrderTracking->save();
+                }
+
+                if ($response->getStatusCode() >= 400 && $response->getStatusCode() <= 500) {
+                    $updateOrderTracking = OrderTracking::find($orderStatus->id);
+                    $updateOrderTracking->insertFlag = 2;
+                    $updateOrderTracking->updateFlag = 2;
+                    $updateOrderTracking->updated_at = Carbon::now();
+                    $updateOrderTracking->save();
+                }
+
+                Log::info('Order Posted to SFA');
+            } catch (\Exception $e) {
+                // handle unexpected errors (network issues, server errors, etc.)
+                $updateOrderTracking = OrderTracking::find($orderStatus->id);
+                if ($updateOrderTracking) {
+                    $updateOrderTracking->insertFlag = 2;
+                    $updateOrderTracking->updateFlag = 2;
+                    $updateOrderTracking->updated_at = Carbon::now();
+                    $updateOrderTracking->save();
+                }
+
+                Log::error("Error posting order to SFA: " . $e->getMessage());
+            }
+        } else {
+            Log::info('No Order Status to send to SFA');
+        }
+    }
+
+    public function pushOrderStatusOld()
     {
         $this->getOrderTrackerFromSage();
         $client = new Client(['verify' => false]);
@@ -90,7 +161,7 @@ class OrderTrackingController extends Controller
             $response = $client->request('POST', env('SFA_BASE_URL') . '/api/v1/sap/sap-track-order', [
                 'headers' => $headers,
                 'json' => [
-                    'transaction_id' => substr($orderStatus->transaction_id, 0, 6)=='SATCHA' ?  substr($orderStatus->transaction_id, 6) : null,
+                    'transaction_id' => substr($orderStatus->transaction_id, 0, 6) == 'SATCHA' ?  substr($orderStatus->transaction_id, 6) : null,
                     'doc_num' => $orderStatus->doc_num,
                     'item_list' => json_decode($orderStatus->item_list, true),
                     'date' => $orderStatus->date,
@@ -107,7 +178,7 @@ class OrderTrackingController extends Controller
                 $updateOrderTracking->updated_at = Carbon::now();
                 $updateOrderTracking->save();
             }
-             if ($response->getStatusCode() >= 400 && $response->getStatusCode()<=500) {
+            if ($response->getStatusCode() >= 400 && $response->getStatusCode() <= 500) {
                 $updateOrderTracking->insertFlag = 2;
                 $updateOrderTracking->updateFlag = 2;
                 $updateOrderTracking->updated_at = Carbon::now();
@@ -115,8 +186,7 @@ class OrderTrackingController extends Controller
             }
             //log error in file or db table
             Log::info('Order Posted to SFA');
-        }
-        else
+        } else
             Log::info('No Order Status to send to SFA');
     }
 
@@ -151,14 +221,13 @@ class OrderTrackingController extends Controller
                     $updateeOrder->sat_sync = 1;
                     $updateeOrder->updated_at = Carbon::now();
                     $updateeOrder->save();
-                }
-                else{
+                } else {
                     Order::find($orderResponse->id)->delete();
                 }
             }
             //log error in file or db table
             Log::info('Order Response Posted to SFA');
         }
-    //    Log::info('No Order Response Status to send to SFA');
+        //    Log::info('No Order Response Status to send to SFA');
     }
 }
