@@ -24,9 +24,9 @@ class PromotionV1Controller extends Controller
                 s.Code, 
                 s.Pack, 
                 erl.fQuantity, 
-                CAST(erl.fPriceDisc AS DECIMAL(12,2)), 
-                CAST(er.dEffDate AS DATE), 
-                CAST(er.dExpDate AS DATE)
+                CAST(erl.fPriceDisc AS DECIMAL(12,2)) AS price, 
+                CAST(er.dEffDate AS DATE) AS start_date, 
+                CAST(er.dExpDate AS DATE) AS end_date
             FROM {$sage_db}_etblVDAR e
             JOIN {$sage_db}Client c ON c.DCLink = e.iARAPID
             JOIN {$sage_db}_etblVDLnAR er ON e.IDVD = er.iVDID
