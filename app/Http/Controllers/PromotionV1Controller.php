@@ -57,7 +57,7 @@ class PromotionV1Controller extends Controller
         WHERE er.dExpDate > GETDATE()
           AND er.dEffDate <= GETDATE()
           AND c.On_Hold = 0
-        ORDER BY er.dEffDate DESC
+        ORDER BY start_date ASC
         OFFSET :offset ROWS FETCH NEXT :perPage ROWS ONLY
     ";
 
