@@ -15,7 +15,9 @@ class OrderTrackingController extends Controller
 {
     public function getOrderTrackerFromSage()
     {
-        $transactions = DB::select('SELECT i.OrderNum,i. ExtOrderNum,i.Description,i.InvNum_dModifiedDate,i.AutoIndex,i.InvDate,i.InvNumber,i.DocState, c.Account FROM ' . env("SAGE_HOST_DB_NAME") . 'InvNum i inner join ' . env("SAGE_HOST_DB_NAME") . 'Client c on i.AccountID=c.DCLink
+        $transactions = DB::select('SELECT i.OrderNum,i. ExtOrderNum,i.Description,i.InvNum_dModifiedDate,i.AutoIndex,i.InvDate,i.InvNumber,i.DocState, c.Account, s.Code sales_rep FROM ' . env("SAGE_HOST_DB_NAME") . 'InvNum i 
+        inner join ' . env("SAGE_HOST_DB_NAME") . 'Client c on i.AccountID=c.DCLink
+        inner join ' . env("SAGE_HOST_DB_NAME") . 'SalesRep s on s.idSalesRep = i.DocRepID
         where DocState>1
         AND DocType IN (1,4) 
         AND i.InvNumber IS NOT NULL 
@@ -57,7 +59,8 @@ class OrderTrackingController extends Controller
                             'sage_modify_time' => $trans->InvNum_dModifiedDate,
                             'updated_at' => $date,
                             'updateFlag' => 0,
-                            'doc_num' => $trans->InvNumber
+                            'doc_num' => $trans->InvNumber,
+                            'sales_rep' => $trans->sales_rep
                         ]);
                         Log::info("Order tracker Records Updated $trans->ExtOrderNum");
                         // $query = DB::update("update PevOrderTracking set status='$trackerStatus',item_list='$encoded_items',date='$trans->InvDate',sage_modify_time='$trans->InvNum_dModifiedDate', updated_at='$date', updateFlag=0, doc_num='$trans->InvNumber' where transaction_id = ?", ["'".$trans->ExtOrderNum."'"]);
@@ -65,8 +68,8 @@ class OrderTrackingController extends Controller
                     }
                 } else {
                     $query = DB::insert(
-                        'insert into PevOrderTracking (transaction_id,doc_num,status,item_list,sage_modify_time, created_at,updated_at, customer_code,date) values (?,?,?,?,?,?,?,?,?)',
-                        [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encoded_items, $trans->InvNum_dModifiedDate, $date, $date, $trans->Account, $trans->InvDate]
+                        'insert into PevOrderTracking (transaction_id,doc_num,status,item_list,sage_modify_time, created_at,updated_at, customer_code,date, sales_rep) values (?,?,?,?,?,?,?,?,?, ?)',
+                        [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encoded_items, $trans->InvNum_dModifiedDate, $date, $date, $trans->Account, $trans->InvDate, $trans->sales_rep]
                     );
                     if ($query)
                         Log::info("Order tracker records inserted");
@@ -105,7 +108,8 @@ class OrderTrackingController extends Controller
                         'item_list'     => json_decode($orderStatus->item_list, true),
                         'date'          => $orderStatus->date,
                         'status'        => $orderStatus->status,
-                        'customer_code' => $orderStatus->customer_code
+                        'customer_code' => $orderStatus->customer_code,
+                        'user_code' => $orderStatus->sales_rep
                     ]
                 ]);
 
