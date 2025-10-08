@@ -46,8 +46,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('command:getproductsfromsage')->everyTenMinutes()->withoutOverlapping();
         $schedule->command('command:getcustomersfromsage')->everyTenminutes()->withoutOverlapping();
         // $schedule->command('command:failedordersageresync')->hourly()->withoutOverlapping();
-        $schedule->command('command:pushpromotiontosfa')->everyFifteenMinutes()->withoutOverlapping();
-        $schedule->command('command:getpromotiontosfa')->everyFifteenMinutes()->withoutOverlapping();
+        // $schedule->command('command:pushpromotiontosfa')->everyFifteenMinutes()->withoutOverlapping();
+        // $schedule->command('command:getpromotiontosfa')->everyFifteenMinutes()->withoutOverlapping();
         $schedule->command('command:pushorderresponsetosfa')->everyTwoMinutes()->withoutOverlapping();
         $schedule->command('command:getpricelistsfromsage')->hourly()->withoutOverlapping();
         $schedule->command('command:truncate_pricelist')->dailyAt('00:17')->withoutOverlapping();
