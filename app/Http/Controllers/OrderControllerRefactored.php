@@ -59,6 +59,7 @@ class OrderControllerRefactored extends Controller
                 'item_code' => $item['item_code'],
                 'uom_code' => $item['uom_code'],
                 'item_price' => $item['item_price'],
+                'base_price' => $item['base_price'] ?? $item['item_price'],
                 'item_quantity' => $item['item_quantity'],
                 'tax_code' => $item['tax_code'],
                 'item_text' => $item['item_code'],
