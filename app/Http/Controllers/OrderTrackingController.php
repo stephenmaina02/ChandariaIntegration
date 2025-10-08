@@ -98,7 +98,7 @@ class OrderTrackingController extends Controller
                     'Content-Type' => 'application/json'
                 ];
 
-                $response = $client->request('POST', env('SFA_BASE_URL') . '/api/v1/sap/sap-track-order', [
+                $response = $client->request('POST', env('SFA_BASE_URL') . '/api/v1/sap/erp-invoices', [
                     'headers' => $headers,
                     'json' => [
                         'transaction_id' => substr($orderStatus->transaction_id, 0, 6) == 'SATCHA'
