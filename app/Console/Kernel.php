@@ -41,7 +41,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('command:pushnewcustomerstosfa')->everyThreeMinutes()->withoutOverlapping();
         $schedule->command('command:pushnewproducttosfa')->everyFiveMinutes()->withoutOverlapping();
        //$schedule->command('command:pushdeliverytosfa')->everyTwoMinutes()->withoutOverlapping();
-        $schedule->command('command:pushorderstatustosfa')->everyMinute()->withoutOverlapping();
+        $schedule->command('command:pushorderstatustosfa')->everyTwoMinutes()->withoutOverlapping();
         //$schedule->command('command:getdeliverydetailsfromsage')->everyTwoMinutes()->withoutOverlapping();
         $schedule->command('command:getproductsfromsage')->everyTenMinutes()->withoutOverlapping();
         $schedule->command('command:getcustomersfromsage')->everyTenminutes()->withoutOverlapping();
