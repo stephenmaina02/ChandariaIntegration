@@ -22,7 +22,7 @@ class OrderTrackingController extends Controller
         AND DocType IN (1,4) 
         AND i.InvNumber IS NOT NULL 
         AND i.InvNumber <> \'\'
-        AND i.OrderDate >= CAST(DATEADD(DAY, -4, GETDATE()) AS DATE)');
+        AND i.OrderDate >= CAST(DATEADD(DAY, -20, GETDATE()) AS DATE)');
         //  ExtOrderNum in (SELECT transaction_id FROM SFAOrders) AND
         if (!is_null($transactions)) {
             foreach ($transactions as $trans) {

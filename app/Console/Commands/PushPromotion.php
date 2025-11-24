@@ -41,7 +41,7 @@ class PushPromotion extends Command
      */
     public function handle()
     {
-        \Log::info("Cron for pushing promotions to SFA is working fine!");
+        //\Log::info("Cron for pushing promotions to SFA is working fine!");
         $promotion= new PromotionController();
         $promotion->postPromotionToSFA();
         $this->info('Push Promotions To SFA Command Ran successfully!');

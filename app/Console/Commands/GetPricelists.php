@@ -40,7 +40,7 @@ class GetPricelists extends Command
      */
     public function handle()
     {
-        \Log::info("Cron for gettings pricelists from sage is working fine!");
+        //\Log::info("Cron for gettings pricelists from sage is working fine!");
         $promotion= new MasterFileController();
         $promotion->getPriceListFromSage();
         $this->info('Get Pricelists From Sage Command Ran successfully!');

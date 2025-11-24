@@ -38,7 +38,7 @@ class PushNewProductToSfa extends Command
      */
     public function handle()
     {
-        \Log::info("Cron for pushing product to SFA is working fine!");
+        //\Log::info("Cron for pushing product to SFA is working fine!");
         ProductController::pushProductToSFA();
         $this->info('PushNewProductToSfa Command Ran successfully!');
     }

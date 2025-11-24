@@ -40,7 +40,7 @@ class PushNewCustomersToSfa extends Command
      */
     public function handle()
     {
-        \Log::info("Cron for pushing customer to SFA is working fine!");
+        //\Log::info("Cron for pushing customer to SFA is working fine!");
         CustomerController::pushToSfa();
         $this->info('PushNewCustomersToSfa Command Ran successfully!');
     }

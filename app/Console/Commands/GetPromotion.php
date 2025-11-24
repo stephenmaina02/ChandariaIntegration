@@ -41,7 +41,7 @@ class GetPromotion extends Command
      */
     public function handle()
     {
-        \Log::info("Cron for pushing promotions to Staging is working fine!");
+        //\Log::info("Cron for pushing promotions to Staging is working fine!");
         $promotion= new PromotionController();
         $promotion->getPromotionToStaging();
         $this->info('Get Promotions To Staging Command Ran successfully!');

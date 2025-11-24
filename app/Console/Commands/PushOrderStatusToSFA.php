@@ -39,7 +39,7 @@ class PushOrderStatusToSFA extends Command
      */
     public function handle()
     {
-        Log::info("Cron for pushing order status to SFA is working fine!");
+        //Log::info("Cron for pushing order status to SFA is working fine!");
         $or= new OrderTrackingController();
 		$or->pushOrderStatus();
         $this->info('PushOrderStatusToSFA Command Ran successfully!');
