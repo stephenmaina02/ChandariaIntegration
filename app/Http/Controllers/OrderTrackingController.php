@@ -15,14 +15,14 @@ class OrderTrackingController extends Controller
 {
     public function getOrderTrackerFromSage()
     {
-        $transactions = DB::select('SELECT i.OrderNum,i. ExtOrderNum,i.Description,i.InvNum_dModifiedDate,i.AutoIndex,i.InvDate,i.InvNumber,i.DocState, c.Account, s.Code sales_rep FROM ' . env("SAGE_HOST_DB_NAME") . 'InvNum i 
+        $transactions = DB::select('SELECT i.OrderNum,i. ExtOrderNum,i.Description,i.InvNum_dModifiedDate,i.AutoIndex,i.InvDate,i.InvNumber,i.DocState, c.Account, s.Code sales_rep, i.DocType FROM ' . env("SAGE_HOST_DB_NAME") . 'InvNum i 
         inner join ' . env("SAGE_HOST_DB_NAME") . 'Client c on i.AccountID=c.DCLink
         inner join ' . env("SAGE_HOST_DB_NAME") . 'SalesRep s on s.idSalesRep = i.DocRepID
         where DocState>1
         AND DocType IN (1,4) 
         AND i.InvNumber IS NOT NULL 
         AND i.InvNumber <> \'\'
-        AND i.OrderDate >= CAST(DATEADD(DAY, -20, GETDATE()) AS DATE)');
+        AND i.OrderDate >= CAST(DATEADD(MONTH, -3, GETDATE()) AS DATE)');
         //  ExtOrderNum in (SELECT transaction_id FROM SFAOrders) AND
         if (!is_null($transactions)) {
             foreach ($transactions as $trans) {
@@ -39,16 +39,21 @@ class OrderTrackingController extends Controller
                 where iInvoiceID= $trans->AutoIndex");
                 $encoded_items = json_encode($items);
                 $trackerStatus = '';
-                if ($trans->DocState == 0 || $trans->DocState == 1)
-                    $trackerStatus = "Order";
-                elseif ($trans->DocState == 2)
-                    $trackerStatus = "Quote";
-                elseif ($trans->DocState == 3)
-                    $trackerStatus == "Partially Invoiced";
-                elseif ($trans->DocState == 4)
-                    $trackerStatus = "Invoiced";
-                else
-                    $trackerStatus = "Cancelled Order";
+                if($trans->DocType == 1){
+                    $trackerStatus = "credit_note";
+                }
+                else{
+                    if ($trans->DocState == 0 || $trans->DocState == 1)
+                        $trackerStatus = "Order";
+                    elseif ($trans->DocState == 2)
+                        $trackerStatus = "Quote";
+                    elseif ($trans->DocState == 3)
+                        $trackerStatus = "Partially Invoiced";
+                    elseif ($trans->DocState == 4)
+                        $trackerStatus = "Invoiced";
+                    else
+                        $trackerStatus = "Cancelled Order";
+                }
 
                 if (!is_null($orderTrackerStatus)) {
                     if (strtotime($orderTrackerStatus->sage_modify_time) != strtotime($trans->InvNum_dModifiedDate) && $orderTrackerStatus->status != 'Invoiced') {
@@ -98,7 +103,12 @@ class OrderTrackingController extends Controller
                     'Content-Type' => 'application/json'
                 ];
 
-                $response = $client->request('POST', env('SFA_BASE_URL') . '/api/v1/sap/erp-invoices', [
+                $endpoint = '/api/v1/sap/erp-invoices';
+                if($orderStatus->status == 'credit_note'){
+                    $endpoint = '/api/v1/sap/sap-credit';
+                }
+
+                $response = $client->request('POST', env('SFA_BASE_URL') . $endpoint, [
                     'headers' => $headers,
                     'json' => [
                         'transaction_id' => substr($orderStatus->transaction_id, 0, 6) == 'SATCHA'
