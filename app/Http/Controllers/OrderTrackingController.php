@@ -42,7 +42,7 @@ class OrderTrackingController extends Controller
                 if($trans->DocType == 1){
                     $trackerStatus = "credit_note";
                 }
-                else{
+                else if ($trans->DocType == 4) {
                     if ($trans->DocState == 0 || $trans->DocState == 1)
                         $trackerStatus = "Order";
                     elseif ($trans->DocState == 2)
@@ -56,7 +56,7 @@ class OrderTrackingController extends Controller
                 }
 
                 if (!is_null($orderTrackerStatus)) {
-                    if (strtotime($orderTrackerStatus->sage_modify_time) != strtotime($trans->InvNum_dModifiedDate) && $orderTrackerStatus->status != 'Invoiced') {
+                    if (strtotime($orderTrackerStatus->sage_modify_time) != strtotime($trans->InvNum_dModifiedDate) && ($orderTrackerStatus->status != 'Invoiced' || $orderTrackerStatus->status != 'credit_note') ) {
                         $query = OrderTracking::where('transaction_id', $trans->ExtOrderNum)->first()->update([
                             'status' => $trackerStatus,
                             'item_list' => $encoded_items,
