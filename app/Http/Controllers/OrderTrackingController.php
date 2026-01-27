@@ -15,36 +15,30 @@ class OrderTrackingController extends Controller
 {
     public function getOrderTrackerFromSage()
     {
-        $transactions = DB::select('SELECT i.OrderNum, i.ExtOrderNum, i.Description,
-            i.InvNum_dModifiedDate, i.AutoIndex, i.InvDate, i.InvNumber, i.DocState,
-            c.Account, s.Code sales_rep, i.DocType
-            FROM ' . env("SAGE_HOST_DB_NAME") . 'InvNum i
-            INNER JOIN ' . env("SAGE_HOST_DB_NAME") . 'Client c ON i.AccountID = c.DCLink
-            INNER JOIN ' . env("SAGE_HOST_DB_NAME") . 'SalesRep s ON s.idSalesRep = i.DocRepID
-            WHERE DocState > 1
-            AND DocType IN (1,4)
-            AND i.InvNumber IS NOT NULL
-            AND i.InvNumber <> \'\'
-            AND i.OrderDate >= CAST(DATEADD(MONTH, -3, GETDATE()) AS DATE)');
+        $rows = DB::select('SELECT * FROM vw_OrderTrackingWithItems');
 
-        if (empty($transactions)) {
+        if (empty($rows)) {
             Log::info('All Orders/Invoices already synced from Sage');
             return;
         }
 
         $finalStatuses = ['Invoiced', 'Cancelled Order', 'credit_note'];
+        $grouped = collect($rows)->groupBy('AutoIndex');
 
-        foreach ($transactions as $trans) {
+        foreach ($grouped as $autoIndex => $group) {
+            $trans = $group->first();
             $trackerStatus = $this->resolveTrackerStatus($trans);
 
-            $status = $trans->DocState == 4 ? "Delivered" : "Not Delivered";
-            $items = DB::select("SELECT s.Code item_code, s.Pack uom_code,
-                CAST(ROUND(l.fQuantity,2) AS numeric(36,2)) item_quantity,
-                CAST(ROUND(l.fUnitPriceExcl,2) AS numeric(36,2)) item_price,
-                ? as item_status
-                FROM " . env('SAGE_HOST_DB_NAME') . "_btblInvoiceLines l
-                INNER JOIN " . env('SAGE_HOST_DB_NAME') . "StkItem s ON s.StockLink = l.iStockCodeID
-                WHERE iInvoiceID = ?", [$status, $trans->AutoIndex]);
+            $itemStatus = $trans->DocState == 4 ? "Delivered" : "Not Delivered";
+            $items = $group->map(function ($row) use ($itemStatus) {
+                return [
+                    'item_code' => $row->item_code,
+                    'uom_code' => $row->uom_code,
+                    'item_quantity' => $row->item_quantity,
+                    'item_price' => $row->item_price,
+                    'item_status' => $itemStatus,
+                ];
+            })->values()->toArray();
 
             $encodedItems = json_encode($items);
             $now = Carbon::now();
