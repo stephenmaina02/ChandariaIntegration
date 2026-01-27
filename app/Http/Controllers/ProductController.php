@@ -16,7 +16,7 @@ class ProductController extends Controller
     {
         //$product = DB::table('Products')->latest()->where('status', 0)->where('uom_list', '!=', null)->first();
         // $product = DB::selectOne('select * from products where status=? and uom_list is not null', [0]);
-        $products = Product::where('status', 0)->where('uom_list', '<>', '')->take(25)->whereNotNull('category')->get();
+        $products = Product::where('status', 0)->where('uom_list', '<>', '')->take(25)->whereNotNull('category')->where('product_name','<>', '')->get();
         if (!is_null($products)) {
             $client = new Client(['verify'=>false]);
             $acc = new AccessToken();
