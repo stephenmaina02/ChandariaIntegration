@@ -68,7 +68,7 @@ class ProductController extends Controller
             foreach ($products as $product) {
                 $item = DB::selectOne("SELECT isnull(b.DefaultSupplierCode,'') principal_code, isnull(b.DefaultSupplierName,'') principal_name,
                 b.WhseCode warehouse_code, s.Code product_code, s.Description_1 product_name,ItemGroupDescription category, s.Description_1 description, s.TTI tax_code,
-                ISNULL('[{\"uom_code\":\"'+s.Pack+'\",\"uom_name\":\"'+pck.Description+'\",\"uom_quantity\":\"'+CAST(pck.PackSize as nvarchar)+'\",\"length\":\"0\",\"width\":\"0\",\"height\":\"0\",\"weight\":\"0\"}]', '') uom_list,
+                '[{\"uom_code\":\"'+ISNULL(s.Pack,'0')+'\",\"uom_name\":\"'+ISNULL(pck.Description,'NA')+'\",\"uom_quantity\":\"'+ISNULL(CAST(pck.PackSize as nvarchar),'0')+'\",\"length\":\"0\",\"width\":\"0\",\"height\":\"0\",\"weight\":\"0\"}]' uom_list,
 				CASE WHEN s.ItemActive=1 THEN 'Active' ELSE 'Inactive' End as status, s.StkItem_dModifiedDate
                 from " . env('SAGE_HOST_DB_NAME') . "[_bvStockAndWhseItems] b  join" . env('SAGE_HOST_DB_NAME') . "StkItem s on b.Code=s.Code
                 LEFT JOIN " . env('SAGE_HOST_DB_NAME') . "PckTbl pck ON pck.Code =s.Pack
