@@ -83,7 +83,117 @@ class OrderTrackingController extends Controller
         } else
             Log::info('All Orders/Invoices already synced from Sage');
     }
-    public function pushOrderStatus()
+	public function pushOrderStatus()
+    {
+        //Log::info("SFA PushJob: Starting pushOrderStatus()");
+
+        $client = new Client(['verify' => false]);
+        $acc = new AccessToken();
+        $accessToken = $acc->getTokenFromSFA();
+
+        if (!$accessToken) {
+            Log::error("SFA PushJob: Failed to retrieve access token from SFA.");
+            return;
+        }
+
+    // Log::info("SFA PushJob: Access token retrieved successfully.");
+
+        $orderStatus = DB::selectOne("
+            SELECT * FROM [PevOrderTracking]
+            WHERE
+                (status <> 'Order' AND [insertFlag] = 0 AND [updateFlag] = 0)
+                OR 
+                ([insertFlag] = 1 AND [updateFlag] = 0)
+            ORDER BY created_at DESC
+        ");
+
+        if (is_null($orderStatus)) {
+            Log::info('SFA PushJob: No Order Status to send.');
+            return;
+        }
+
+
+        try {
+            $headers = [
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Accept'        => 'application/json',
+                'Content-Type' => 'application/json'
+            ];
+
+            $endpoint = '/api/v1/sap/erp-invoices';
+            if ($orderStatus->status === 'credit_note') {
+                $endpoint = '/api/v1/sap/erp-credit-notes';
+            }
+
+            $payload = [
+                'transaction_id' => substr($orderStatus->transaction_id, 0, 6) == 'SATCHA'
+                    ? substr($orderStatus->transaction_id, 6)
+                    : null,
+                'doc_num'       => $orderStatus->doc_num,
+                'item_list'     => json_decode($orderStatus->item_list, true),
+                'date'          => $orderStatus->date,
+                'status'        => $orderStatus->status,
+                'customer_code' => $orderStatus->customer_code,
+                'user_code'     => $orderStatus->sales_rep
+            ];
+
+            // Log::info("SFA PushJob: Sending payload", [
+            //     'endpoint' => $endpoint,
+            //     'payload'  => $payload
+            // ]);
+
+            $response = $client->post(env('SFA_BASE_URL') . $endpoint, [
+                'headers' => $headers,
+                'json'    => $payload
+            ]);
+
+            $status = $response->getStatusCode();
+            $body   = (string) $response->getBody();
+
+            // Log::info("SFA PushJob: Response received", [
+            //     'status_code' => $status,
+            //     'response_body' => $body
+            // ]);
+
+            $updateOrderTracking = OrderTracking::find($orderStatus->id);
+
+            if ($status == 200) {
+                $updateOrderTracking->insertFlag = 1;
+                $updateOrderTracking->updateFlag = 1;
+                //Log::info("SFA PushJob: Order successfully posted.");
+            } elseif ($status >= 400 && $status <= 500) {
+                $updateOrderTracking->insertFlag = 2;
+                $updateOrderTracking->updateFlag = 2;
+                Log::warning("SFA PushJob: Order rejected by SFA.", [
+                    'status_code' => $status,
+                    'response' => $body
+                ]);
+            }
+
+            $updateOrderTracking->updated_at = Carbon::now();
+            $updateOrderTracking->save();
+
+        } catch (\Exception $e) {
+
+            Log::error("SFA PushJob: Exception thrown while posting to SFA", [
+                'error_message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            $updateOrderTracking = OrderTracking::find($orderStatus->id);
+
+            if ($updateOrderTracking) {
+                $updateOrderTracking->insertFlag = 2;
+                $updateOrderTracking->updateFlag = 2;
+                $updateOrderTracking->updated_at = Carbon::now();
+                $updateOrderTracking->save();
+            }
+        }
+    }
+
+	
+	
+    public function pushOrderStatusod()
     {
         // $this->getOrderTrackerFromSage();
         $client = new Client(['verify' => false]);
@@ -105,7 +215,7 @@ class OrderTrackingController extends Controller
 
                 $endpoint = '/api/v1/sap/erp-invoices';
                 if($orderStatus->status == 'credit_note'){
-                    $endpoint = '/api/v1/sap/sap-credit';
+                    $endpoint = '/api/v1/sap/erp-credit-notes';
                 }
 
                 $response = $client->request('POST', env('SFA_BASE_URL') . $endpoint, [
