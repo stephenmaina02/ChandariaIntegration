@@ -15,73 +15,87 @@ class OrderTrackingController extends Controller
 {
     public function getOrderTrackerFromSage()
     {
-        $transactions = DB::select('SELECT i.OrderNum,i. ExtOrderNum,i.Description,i.InvNum_dModifiedDate,i.AutoIndex,i.InvDate,i.InvNumber,i.DocState, c.Account, s.Code sales_rep, i.DocType FROM ' . env("SAGE_HOST_DB_NAME") . 'InvNum i 
-        inner join ' . env("SAGE_HOST_DB_NAME") . 'Client c on i.AccountID=c.DCLink
-        inner join ' . env("SAGE_HOST_DB_NAME") . 'SalesRep s on s.idSalesRep = i.DocRepID
-        where DocState>1
-        AND DocType IN (1,4) 
-        AND i.InvNumber IS NOT NULL 
-        AND i.InvNumber <> \'\'
-        AND i.OrderDate >= CAST(DATEADD(MONTH, -3, GETDATE()) AS DATE)');
-        //  ExtOrderNum in (SELECT transaction_id FROM SFAOrders) AND
-        if (!is_null($transactions)) {
-            foreach ($transactions as $trans) {
-                $status = '';
-                $items = [];
-                if ($trans->DocState == 4)
-                    $status = "Delivered";
-                else
-                    $status = "Not Delivered";
-                $date = Carbon::now();
-                $orderTrackerStatus = OrderTracking::where('transaction_id', $trans->ExtOrderNum)->first();
-                $items = DB::select("SELECT s.Code item_code,s.Pack uom_code,cast(round(l.fQuantity,2) as numeric(36,2)) item_quantity,cast(round(l.fUnitPriceExcl,2) as numeric(36,2)) item_price,'" . $status . "' as item_status from " . env('SAGE_HOST_DB_NAME') . "_btblInvoiceLines l
-                inner join " . env('SAGE_HOST_DB_NAME') . "StkItem s on s.StockLink=l.iStockCodeID
-                where iInvoiceID= $trans->AutoIndex");
-                $encoded_items = json_encode($items);
-                $trackerStatus = '';
-                if($trans->DocType == 1){
-                    $trackerStatus = "credit_note";
-                }
-                else if ($trans->DocType == 4) {
-                    if ($trans->DocState == 0 || $trans->DocState == 1)
-                        $trackerStatus = "Order";
-                    elseif ($trans->DocState == 2)
-                        $trackerStatus = "Quote";
-                    elseif ($trans->DocState == 3)
-                        $trackerStatus = "Partially Invoiced";
-                    elseif ($trans->DocState == 4)
-                        $trackerStatus = "Invoiced";
-                    else
-                        $trackerStatus = "Cancelled Order";
-                }
+        $transactions = DB::select('SELECT i.OrderNum, i.ExtOrderNum, i.Description,
+            i.InvNum_dModifiedDate, i.AutoIndex, i.InvDate, i.InvNumber, i.DocState,
+            c.Account, s.Code sales_rep, i.DocType
+            FROM ' . env("SAGE_HOST_DB_NAME") . 'InvNum i
+            INNER JOIN ' . env("SAGE_HOST_DB_NAME") . 'Client c ON i.AccountID = c.DCLink
+            INNER JOIN ' . env("SAGE_HOST_DB_NAME") . 'SalesRep s ON s.idSalesRep = i.DocRepID
+            WHERE DocState > 1
+            AND DocType IN (1,4)
+            AND i.InvNumber IS NOT NULL
+            AND i.InvNumber <> \'\'
+            AND i.OrderDate >= CAST(DATEADD(MONTH, -3, GETDATE()) AS DATE)');
 
-                if (!is_null($orderTrackerStatus)) {
-                    if (strtotime($orderTrackerStatus->sage_modify_time) != strtotime($trans->InvNum_dModifiedDate) && ($orderTrackerStatus->status != 'Invoiced' || $orderTrackerStatus->status != 'credit_note') ) {
-                        $query = OrderTracking::where('transaction_id', $trans->ExtOrderNum)->first()->update([
-                            'status' => $trackerStatus,
-                            'item_list' => $encoded_items,
-                            'date' => $trans->InvDate,
-                            'sage_modify_time' => $trans->InvNum_dModifiedDate,
-                            'updated_at' => $date,
-                            'updateFlag' => 0,
-                            'doc_num' => $trans->InvNumber,
-                            'sales_rep' => $trans->sales_rep
-                        ]);
-                        Log::info("Order tracker Records Updated $trans->ExtOrderNum");
-                        // $query = DB::update("update PevOrderTracking set status='$trackerStatus',item_list='$encoded_items',date='$trans->InvDate',sage_modify_time='$trans->InvNum_dModifiedDate', updated_at='$date', updateFlag=0, doc_num='$trans->InvNumber' where transaction_id = ?", ["'".$trans->ExtOrderNum."'"]);
-
-                    }
-                } else {
-                    $query = DB::insert(
-                        'insert into PevOrderTracking (transaction_id,doc_num,status,item_list,sage_modify_time, created_at,updated_at, customer_code,date, sales_rep) values (?,?,?,?,?,?,?,?,?, ?)',
-                        [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encoded_items, $trans->InvNum_dModifiedDate, $date, $date, $trans->Account, $trans->InvDate, $trans->sales_rep]
-                    );
-                    if ($query)
-                        Log::info("Order tracker records inserted");
-                }
-            }
-        } else
+        if (empty($transactions)) {
             Log::info('All Orders/Invoices already synced from Sage');
+            return;
+        }
+
+        $finalStatuses = ['Invoiced', 'Cancelled Order', 'credit_note'];
+
+        foreach ($transactions as $trans) {
+            $trackerStatus = $this->resolveTrackerStatus($trans);
+
+            $status = $trans->DocState == 4 ? "Delivered" : "Not Delivered";
+            $items = DB::select("SELECT s.Code item_code, s.Pack uom_code,
+                CAST(ROUND(l.fQuantity,2) AS numeric(36,2)) item_quantity,
+                CAST(ROUND(l.fUnitPriceExcl,2) AS numeric(36,2)) item_price,
+                ? as item_status
+                FROM " . env('SAGE_HOST_DB_NAME') . "_btblInvoiceLines l
+                INNER JOIN " . env('SAGE_HOST_DB_NAME') . "StkItem s ON s.StockLink = l.iStockCodeID
+                WHERE iInvoiceID = ?", [$status, $trans->AutoIndex]);
+
+            $encodedItems = json_encode($items);
+            $now = Carbon::now();
+
+            // Check existence using either transaction_id OR doc_num
+            $orderTrackerStatus = OrderTracking::where('transaction_id', $trans->ExtOrderNum)
+                ->orWhere('doc_num', $trans->InvNumber)
+                ->first();
+
+            if (!is_null($orderTrackerStatus)) {
+                // Skip records already in a final status
+                if (in_array($orderTrackerStatus->status, $finalStatuses)) {
+                    continue;
+                }
+
+                // Only update if status has changed
+                if ($orderTrackerStatus->status !== $trackerStatus) {
+                    $orderTrackerStatus->update([
+                        'status' => $trackerStatus,
+                        'item_list' => $encodedItems,
+                        'date' => $trans->InvDate,
+                        'sage_modify_time' => $trans->InvNum_dModifiedDate,
+                        'updated_at' => $now,
+                        'updateFlag' => 0,
+                        'doc_num' => $trans->InvNumber,
+                        'sales_rep' => $trans->sales_rep
+                    ]);
+                    Log::info("Order tracker updated: {$trans->ExtOrderNum}");
+                }
+            } else {
+                DB::insert(
+                    'INSERT INTO PevOrderTracking (transaction_id, doc_num, status, item_list, sage_modify_time, created_at, updated_at, customer_code, date, sales_rep) VALUES (?,?,?,?,?,?,?,?,?,?)',
+                    [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encodedItems, $trans->InvNum_dModifiedDate, $now, $now, $trans->Account, $trans->InvDate, $trans->sales_rep]
+                );
+                Log::info("Order tracker inserted: {$trans->ExtOrderNum}");
+            }
+        }
+    }
+
+    private function resolveTrackerStatus($trans): string
+    {
+        if ($trans->DocType == 1) {
+            return 'credit_note';
+        }
+
+        if ($trans->DocState == 0 || $trans->DocState == 1) return 'Order';
+        if ($trans->DocState == 2) return 'Quote';
+        if ($trans->DocState == 3) return 'Partially Invoiced';
+        if ($trans->DocState == 4) return 'Invoiced';
+
+        return 'Cancelled Order';
     }
     public function pushOrderStatus()
     {
