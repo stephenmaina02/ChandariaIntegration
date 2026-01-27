@@ -15,8 +15,8 @@ class OrderTrackingController extends Controller
 {
     public function getOrderTrackerFromSage()
     {
+        ini_set('memory_limit', '-1');
         $rows = DB::select('SELECT * FROM vw_OrderTrackingWithItems');
-
         if (empty($rows)) {
             Log::info('All Orders/Invoices already synced from Sage');
             return;
@@ -66,14 +66,14 @@ class OrderTrackingController extends Controller
                         'doc_num' => $trans->InvNumber,
                         'sales_rep' => $trans->sales_rep
                     ]);
-                    Log::info("Order tracker updated: {$trans->ExtOrderNum}");
+                   // Log::info("Order tracker updated: {$trans->ExtOrderNum}");
                 }
             } else {
                 DB::insert(
                     'INSERT INTO PevOrderTracking (transaction_id, doc_num, status, item_list, sage_modify_time, created_at, updated_at, customer_code, date, sales_rep) VALUES (?,?,?,?,?,?,?,?,?,?)',
                     [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encodedItems, $trans->InvNum_dModifiedDate, $now, $now, $trans->Account, $trans->InvDate, $trans->sales_rep]
                 );
-                Log::info("Order tracker inserted: {$trans->ExtOrderNum}");
+                //Log::info("Order tracker inserted: {$trans->ExtOrderNum}");
             }
         }
     }
@@ -363,3 +363,37 @@ class OrderTrackingController extends Controller
         //    Log::info('No Order Response Status to send to SFA');
     }
 }
+
+// USE [sfa_evo]
+// GO
+
+// /****** Object:  View [dbo].[vw_OrderTrackingWithItems]    Script Date: 27/01/2026 14:49:28 ******/
+// SET ANSI_NULLS ON
+// GO
+
+// SET QUOTED_IDENTIFIER ON
+// GO
+
+
+// CREATE VIEW [dbo].[vw_OrderTrackingWithItems] AS
+// SELECT
+//      i.OrderNum, i.ExtOrderNum, i.Description,
+//      i.InvNum_dModifiedDate, i.AutoIndex, i.InvDate, i.InvNumber, i.DocState,
+//      c.Account, s.Code AS sales_rep, i.DocType,
+//      st.Code AS item_code, st.Pack AS uom_code,
+//      CAST(ROUND(l.fQuantity, 2) AS numeric(36,2)) AS item_quantity,
+//      CAST(ROUND(l.fUnitPriceExcl, 2) AS numeric(36,2)) AS item_price
+//  FROM cil..InvNum i
+//  INNER JOIN cil..Client c ON i.AccountID = c.DCLink
+//  INNER JOIN cil..SalesRep s ON s.idSalesRep = i.DocRepID
+//  INNER JOIN cil.._btblInvoiceLines l ON l.iInvoiceID = i.AutoIndex
+//  INNER JOIN cil..StkItem st ON st.StockLink = l.iStockCodeID
+//  WHERE i.DocState > 1
+//    AND i.DocType IN (1, 4)
+//    AND i.InvNumber IS NOT NULL
+//    AND i.InvNumber <> ''
+//    AND i.OrderDate >= CAST(DATEADD(MONTH, -3, GETDATE()) AS DATE);
+// GO
+
+
+
