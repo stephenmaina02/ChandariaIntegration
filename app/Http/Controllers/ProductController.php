@@ -86,9 +86,12 @@ class ProductController extends Controller
             }
         }
         $productsToUpdate = DB::select("SELECT isnull(DefaultSupplierCode,'') principal_code,s.StkItem_dModifiedDate, isnull(DefaultSupplierName,'') principal_name, WhseCode warehouse_code,V.[Code] product_code
-        ,V.[Description_1] product_name,V.ItemGroup category ,ItemGroupDescription description ,V.TTI tax_code,UOMStockingUnitCode uom_list,Case when V.ItemActive=1 then 'Active' else  'Inactive'
-        End as status,(SELECT  TOP 1 [cBranchCode] FROM " . env('SAGE_HOST_DB_NAME') . "[_etblBranch] where  idbranch=WhseStk_iBranchID) Branch FROM " . env('SAGE_HOST_DB_NAME') . "[_bvStockAndWhseItems] v inner join " . env('SAGE_HOST_DB_NAME') . "StkItem s on v.Code=s.Code LEFT JOIN
-       " . env('SAGE_HOST_DB_NAME') . "WhseStk  W ON V.WhseLink=W.WHWhseID AND V.StockLink=W.WHStockLink  where v.Code in (SELECT product_code FROM " . env('APP_DB_NAME') . "Products where sage_modify_time<>s.StkItem_dModifiedDate or status=0)");
+        ,V.[Description_1] product_name,V.ItemGroup category ,ItemGroupDescription description ,V.TTI tax_code,
+        '[{\"uom_code\":\"'+ISNULL(s.Pack,'0')+'\",\"uom_name\":\"'+ISNULL(pck.Description,'NA')+'\",\"uom_quantity\":\"'+ISNULL(CAST(pck.PackSize as nvarchar),'0')+'\",\"length\":\"0\",\"width\":\"0\",\"height\":\"0\",\"weight\":\"0\"}]' uom_list,
+        Case when V.ItemActive=1 then 'Active' else  'Inactive'
+        End as status,(SELECT  TOP 1 [cBranchCode] FROM " . env('SAGE_HOST_DB_NAME') . "[_etblBranch] where  idbranch=WhseStk_iBranchID) Branch FROM " . env('SAGE_HOST_DB_NAME') . "[_bvStockAndWhseItems] v inner join " . env('SAGE_HOST_DB_NAME') . "StkItem s on v.Code=s.Code
+        LEFT JOIN " . env('SAGE_HOST_DB_NAME') . "PckTbl pck ON pck.Code = s.Pack
+        LEFT JOIN " . env('SAGE_HOST_DB_NAME') . "WhseStk  W ON V.WhseLink=W.WHWhseID AND V.StockLink=W.WHStockLink  where v.Code in (SELECT product_code FROM " . env('APP_DB_NAME') . "Products where sage_modify_time<>s.StkItem_dModifiedDate or status=0)");
         if (!is_null($productsToUpdate)) {
             foreach ($productsToUpdate as $prod) {
                 $prods = Product::where('product_code', $prod->product_code)->first();
@@ -96,7 +99,7 @@ class ProductController extends Controller
                     if ($prod->StkItem_dModifiedDate != $prods->sage_modify_time) {
                         $query2 = DB::update("update " . env('APP_DB_NAME') . "Products set principal_code='$prod->principal_code',principal_name='$prod->principal_name',
                                 warehouse_code='$prod->warehouse_code', product_name='$prod->product_name',
-                                category='$prod->category', description='$prod->description',tax_code='$prod->tax_code',
+                                category='$prod->category', description='$prod->description',tax_code='$prod->tax_code',uom_list='$prod->uom_list',
                                 product_status='$prod->status',status=0,updated_at='$date', sage_modify_time = '$prod->StkItem_dModifiedDate' where product_code = '$prod->product_code'");
                         if ($query2 > 0)
                             Log::info("Products updated from sage");
