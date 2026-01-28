@@ -59,7 +59,8 @@ class OrderTrackingController extends Controller
                 // Skip records already in a final status
                 Log::info("Order tracker updated: {$trans->ExtOrderNum} and status {$orderTrackerStatus->status}");
                 if (in_array($orderTrackerStatus->status, $finalStatuses)) {
-                    if ($orderTrackerStatus->doc_num !== $trans->InvNumber) {
+                    if ($orderTrackerStatus->doc_num !== $trans->InvNumber
+                        && !OrderTracking::where('doc_num', $trans->InvNumber)->exists()) {
                         // Different document (e.g. credit note after invoice) — insert new record
                         DB::insert(
                             'INSERT INTO PevOrderTracking (transaction_id, doc_num, status, item_list, sage_modify_time, created_at, updated_at, customer_code, date, sales_rep) VALUES (?,?,?,?,?,?,?,?,?,?)',
