@@ -16,7 +16,7 @@ class OrderTrackingController extends Controller
     public function getOrderTrackerFromSage()
     {
         ini_set('memory_limit', '-1');
-        $rows = DB::select('SELECT * FROM vw_OrderTrackingWithItems');
+        $rows = DB::select("SELECT * FROM vw_OrderTrackingWithItems where InvNumber='CRN118277'");
         if (empty($rows)) {
             Log::info('All Orders/Invoices already synced from Sage');
             return;
@@ -44,12 +44,20 @@ class OrderTrackingController extends Controller
             $now = Carbon::now();
 
             // Check existence using either transaction_id OR doc_num
-            $orderTrackerStatus = OrderTracking::where('transaction_id', $trans->ExtOrderNum)
-                ->orWhere('doc_num', $trans->InvNumber)
-                ->first();
+            // $orderTrackerStatus = OrderTracking::where('transaction_id', $trans->ExtOrderNum)
+            //     ->orWhere('doc_num', $trans->InvNumber)
+            //     ->first();
+            $orderTrackerStatus = OrderTracking::where(function ($q) use ($trans) {
+                $q->where('transaction_id', 'like', 'SATCHA%')
+                ->where('transaction_id', $trans->ExtOrderNum);
+            })
+            ->orWhere('doc_num', $trans->InvNumber)
+            ->first();
+
 
             if (!is_null($orderTrackerStatus)) {
                 // Skip records already in a final status
+                Log::info("Order tracker updated: {$trans->ExtOrderNum} and status {$orderTrackerStatus->status}");
                 if (in_array($orderTrackerStatus->status, $finalStatuses)) {
                     continue;
                 }
@@ -66,7 +74,7 @@ class OrderTrackingController extends Controller
                         'doc_num' => $trans->InvNumber,
                         'sales_rep' => $trans->sales_rep
                     ]);
-                   // Log::info("Order tracker updated: {$trans->ExtOrderNum}");
+                   //Log::info("Order tracker updated: {$trans->ExtOrderNum}");
                 }
             } else {
                 DB::insert(
