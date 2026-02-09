@@ -16,7 +16,7 @@ class OrderTrackingController extends Controller
     public function getOrderTrackerFromSage()
     {
         ini_set('memory_limit', '-1');
-        $rows = DB::select("SELECT * FROM vw_OrderTrackingWithItems where InvNumber='CRN118277'");
+        $rows = DB::select("SELECT * FROM vw_OrderTrackingWithItems");
         if (empty($rows)) {
             Log::info('All Orders/Invoices already synced from Sage');
             return;
@@ -57,7 +57,7 @@ class OrderTrackingController extends Controller
 
             if (!is_null($orderTrackerStatus)) {
                 // Skip records already in a final status
-                Log::info("Order tracker updated: {$trans->ExtOrderNum} and status {$orderTrackerStatus->status}");
+                // Log::info("Order tracker updated: {$trans->ExtOrderNum} and status {$orderTrackerStatus->status}");
                 if (in_array($orderTrackerStatus->status, $finalStatuses)) {
                     if ($orderTrackerStatus->doc_num !== $trans->InvNumber
                         && !OrderTracking::where('doc_num', $trans->InvNumber)->exists()) {
@@ -107,7 +107,184 @@ class OrderTrackingController extends Controller
 
         return 'Cancelled Order';
     }
-	public function pushOrderStatus()
+
+    public function pushOrderStatus()
+    {
+        $batchSize = 20;
+        $client = new Client(['verify' => false]);
+        $acc = new AccessToken();
+        $accessToken = $acc->getTokenFromSFA();
+
+        if (!$accessToken) {
+            Log::error("SFA PushJob: Failed to retrieve access token from SFA.");
+            return;
+        }
+
+        DB::beginTransaction();
+        
+        try {
+            // Lock multiple rows for update
+            $orderStatuses = DB::table('PevOrderTracking')
+                ->where(function($query) {
+                    $query->where('status', '<>', 'Order')
+                        ->where('insertFlag', 0)
+                        ->where('updateFlag', 0);
+                })
+                ->orWhere(function($query) {
+                    $query->where('insertFlag', 1)
+                        ->where('updateFlag', 0);
+                })
+                ->orderBy('created_at', 'DESC')
+                ->limit($batchSize)
+                ->lockForUpdate()
+                ->get();
+
+            if ($orderStatuses->isEmpty()) {
+                DB::commit();
+                Log::info('SFA PushJob: No Order Status to send.');
+                return;
+            }
+
+            $orderIds = $orderStatuses->pluck('id')->toArray();
+
+            // Mark all as processing
+            DB::table('PevOrderTracking')
+                ->whereIn('id', $orderIds)
+                ->update([
+                    'insertFlag' => 3, // Processing
+                    'updateFlag' => 3,
+                    'updated_at' => Carbon::now()
+                ]);
+            
+            DB::commit();
+            
+            // Log::info("SFA PushJob: Locked {$orderStatuses->count()} orders for processing", [
+            //     'order_ids' => $orderIds
+            // ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("SFA PushJob: Failed to lock orders for processing", [
+                'error' => $e->getMessage()
+            ]);
+            return;
+        }
+
+        // Process each order
+        $results = [
+            'success' => 0,
+            'failed' => 0,
+            'total' => $orderStatuses->count()
+        ];
+
+        foreach ($orderStatuses as $orderStatus) {
+            $success = $this->processOrder($orderStatus, $client, $accessToken);
+            
+            if ($success) {
+                $results['success']++;
+            } else {
+                $results['failed']++;
+            }
+        }
+
+        // Log::info("SFA PushJob: Batch processing completed", $results);
+        
+        return $results;
+    }
+
+    /**
+     * Process a single order
+     */
+    private function processOrder($orderStatus, Client $client, string $accessToken): bool
+    {
+        $finalInsertFlag = 2;
+        $finalUpdateFlag = 2;
+        $updateSuccess = false;
+
+        try {
+            $headers = [
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Accept'        => 'application/json',
+                'Content-Type'  => 'application/json'
+            ];
+
+            $endpoint = $orderStatus->status === 'credit_note'
+                ? '/api/v1/sap/erp-credit-notes'
+                : '/api/v1/sap/erp-invoices';
+
+            $payload = [
+                'transaction_id' => substr($orderStatus->transaction_id, 0, 6) === 'SATCHA'
+                    ? substr($orderStatus->transaction_id, 6)
+                    : null,
+                'doc_num'       => $orderStatus->doc_num,
+                'item_list'     => json_decode($orderStatus->item_list, true),
+                'date'          => $orderStatus->date,
+                'status'        => $orderStatus->status,
+                'customer_code' => $orderStatus->customer_code,
+                'user_code'     => $orderStatus->sales_rep
+            ];
+
+            $response = $client->post(env('SFA_BASE_URL') . $endpoint, [
+                'headers' => $headers,
+                'json'    => $payload,
+                'timeout' => 30
+            ]);
+
+            $status = $response->getStatusCode();
+            $body   = (string) $response->getBody();
+
+            if ($status === 200) {
+                $finalInsertFlag = 1;
+                $finalUpdateFlag = 1;
+                $updateSuccess = true;
+                // Log::info("SFA PushJob: Order successfully posted", [
+                //     'order_id' => $orderStatus->id,
+                //     'doc_num' => $orderStatus->doc_num
+                // ]);
+            } else {
+                Log::warning("SFA PushJob: Order rejected by SFA", [
+                    'order_id' => $orderStatus->id,
+                    'doc_num' => $orderStatus->doc_num,
+                    'status_code' => $status,
+                    'response' => $body
+                ]);
+            }
+
+        } catch (\GuzzleHttp\Exception\RequestException $e) {
+            Log::error("SFA PushJob: HTTP request failed", [
+                'order_id' => $orderStatus->id,
+                'doc_num' => $orderStatus->doc_num,
+                'error_message' => $e->getMessage(),
+                'response' => $e->hasResponse() ? (string) $e->getResponse()->getBody() : null
+            ]);
+        } catch (\Exception $e) {
+            Log::error("SFA PushJob: Exception during order processing", [
+                'order_id' => $orderStatus->id,
+                'doc_num' => $orderStatus->doc_num,
+                'error_message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        } finally {
+            // Always update flags
+            try {
+                DB::table('PevOrderTracking')
+                    ->where('id', $orderStatus->id)
+                    ->update([
+                        'insertFlag' => $finalInsertFlag,
+                        'updateFlag' => $finalUpdateFlag,
+                        'updated_at' => Carbon::now()
+                    ]);
+            } catch (\Exception $e) {
+                Log::critical("SFA PushJob: CRITICAL - Failed to update flags", [
+                    'order_id' => $orderStatus->id,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return $updateSuccess;
+    }
+	public function pushOrderStatusOldBImprove()
     {
         //Log::info("SFA PushJob: Starting pushOrderStatus()");
 
