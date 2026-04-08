@@ -31,12 +31,18 @@ class OrderTrackingController extends Controller
 
             $itemStatus = $trans->DocState == 4 ? "Delivered" : "Not Delivered";
             $items = $group->map(function ($row) use ($itemStatus) {
+                $discount = $row->customer_discount ?? 0;
+                $itemPrice = $discount > 0
+                    ? round($row->item_price * (100 - $discount) / 100, 2)
+                    : $row->item_price;
+
                 return [
-                    'item_code' => $row->item_code,
-                    'uom_code' => $row->uom_code,
+                    'item_code'     => $row->item_code,
+                    'uom_code'      => $row->uom_code,
                     'item_quantity' => $row->item_quantity,
-                    'item_price' => $row->item_price,
-                    'item_status' => $itemStatus,
+                    'base_price'    => $row->item_price,
+                    'item_price'    => $itemPrice,
+                    'item_status'   => $itemStatus,
                 ];
             })->values()->toArray();
 
