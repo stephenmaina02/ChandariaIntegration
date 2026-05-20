@@ -69,8 +69,8 @@ class OrderTrackingController extends Controller
                         && !OrderTracking::where('doc_num', $trans->InvNumber)->exists()) {
                         // Different document (e.g. credit note after invoice) — insert new record
                         DB::insert(
-                            'INSERT INTO PevOrderTracking (transaction_id, doc_num, status, item_list, sage_modify_time, created_at, updated_at, customer_code, date, sales_rep) VALUES (?,?,?,?,?,?,?,?,?,?)',
-                            [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encodedItems, $trans->InvNum_dModifiedDate, $now, $now, $trans->Account, $trans->InvDate, $trans->sales_rep]
+                            'INSERT INTO PevOrderTracking (transaction_id, doc_num, status, item_list, sage_modify_time, created_at, updated_at, customer_code, date, sales_rep, original_doc_num) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                            [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encodedItems, $trans->InvNum_dModifiedDate, $now, $now, $trans->Account, $trans->InvDate, $trans->sales_rep, $trans->DeliveryNote]
                         );
                     }
                     continue;
@@ -86,14 +86,15 @@ class OrderTrackingController extends Controller
                         'updated_at' => $now,
                         'updateFlag' => 0,
                         'doc_num' => $trans->InvNumber,
-                        'sales_rep' => $trans->sales_rep
+                        'sales_rep' => $trans->sales_rep,
+                        'original_doc_num' => $trans->DeliveryNote
                     ]);
                    //Log::info("Order tracker updated: {$trans->ExtOrderNum}");
                 }
             } else {
                 DB::insert(
-                    'INSERT INTO PevOrderTracking (transaction_id, doc_num, status, item_list, sage_modify_time, created_at, updated_at, customer_code, date, sales_rep) VALUES (?,?,?,?,?,?,?,?,?,?)',
-                    [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encodedItems, $trans->InvNum_dModifiedDate, $now, $now, $trans->Account, $trans->InvDate, $trans->sales_rep]
+                    'INSERT INTO PevOrderTracking (transaction_id, doc_num, status, item_list, sage_modify_time, created_at, updated_at, customer_code, date, sales_rep, original_doc_num) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+                    [$trans->ExtOrderNum, $trans->InvNumber, $trackerStatus, $encodedItems, $trans->InvNum_dModifiedDate, $now, $now, $trans->Account, $trans->InvDate, $trans->sales_rep, $trans->DeliveryNote]
                 );
                 //Log::info("Order tracker inserted: {$trans->ExtOrderNum}");
             }
@@ -229,6 +230,10 @@ class OrderTrackingController extends Controller
                 'customer_code' => $orderStatus->customer_code,
                 'user_code'     => $orderStatus->sales_rep
             ];
+
+            if ($orderStatus->status === 'credit_note') {
+                $payload['invoice_doc_num'] = $orderStatus->original_doc_num;
+            }
 
             $response = $client->post(env('SFA_BASE_URL') . $endpoint, [
                 'headers' => $headers,
