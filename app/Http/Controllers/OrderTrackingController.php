@@ -232,7 +232,11 @@ class OrderTrackingController extends Controller
             ];
 
             if ($orderStatus->status === 'credit_note') {
-                $payload['invoice_doc_num'] = $orderStatus->original_doc_num;
+                $docNum = $orderStatus->original_doc_num;
+                if (stripos($docNum, 'DEL') === 0) {
+                    $docNum = substr($docNum, 3);
+                }
+                $payload['invoice_doc_num'] = $docNum;
             }
 
             $response = $client->post(env('SFA_BASE_URL') . $endpoint, [
