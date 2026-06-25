@@ -11,6 +11,7 @@ use App\Http\Controllers\MasterFileController;
 use App\Http\Controllers\PromotionV1Controller;
 use App\Http\Controllers\BranchTrackingController;
 use App\Http\Controllers\OrderControllerRefactored;
+use App\Http\Controllers\SettingsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -48,6 +49,9 @@ Route::post('pev/order-tracking/{branch}', [BranchTrackingController::class, 'tr
 Route::post('pev/delivery-tracking/{branch}', [BranchTrackingController::class, 'trackBranchDelivery']);
 Route::get('pev/price-list', [MasterFileController::class, 'getPriceList']);
 Route::get('pricelists', [MasterFileController::class, 'getPriceListFromSage']);
+
+Route::get('settings/allowed-warehouses', [SettingsController::class, 'getAllowedWarehouses']);
+Route::post('settings/allowed-warehouses', [SettingsController::class, 'updateAllowedWarehouses']);
 
 
 // Route::get('/try-product', [ProductController::pushProductToSFA()]);

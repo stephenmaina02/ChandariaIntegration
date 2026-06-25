@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\Order;
+use App\Http\Controllers\SettingsController;
 
 
 class OrderTrackingController extends Controller
@@ -22,8 +23,23 @@ class OrderTrackingController extends Controller
             return;
         }
 
+        $settings = SettingsController::readSettings();
+        $allowedWarehouses = $settings['allowed_order_warehouses'] ?? [];
+
+        $rows = collect($rows)->filter(function ($row) use ($allowedWarehouses) {
+            if (substr($row->ExtOrderNum, 0, 6) === 'SATCHA') {
+                return true;
+            }
+            return empty($allowedWarehouses) || in_array($row->warehouse_code, $allowedWarehouses);
+        })->values();
+
+        if ($rows->isEmpty()) {
+            Log::info('All Orders/Invoices already synced from Sage');
+            return;
+        }
+
         $finalStatuses = ['Invoiced', 'Cancelled Order', 'credit_note'];
-        $grouped = collect($rows)->groupBy('AutoIndex');
+        $grouped = $rows->groupBy('AutoIndex');
 
         foreach ($grouped as $autoIndex => $group) {
             $trans = $group->first();

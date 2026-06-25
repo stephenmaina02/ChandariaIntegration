@@ -61,7 +61,7 @@ class ProductController extends Controller
     }
     public static function getProducts()
     {
-        ini_set('max_execution_time', 1200);
+        ini_set('memory_limit', '-1');
         $date = Carbon::now();
         $products = DB::select("SELECT w.Code, w.ItemActive FROM " . env('SAGE_HOST_DB_NAME') . "[_bvStockAndWhseItems] w join " . env('SAGE_HOST_DB_NAME') . "WhseMst whs on whs.WhseLink=w.WhseLink WHERE w.Code not in (SELECT product_code FROM " . env('APP_DB_NAME') . "Products) AND w.ItemActive=1 and w.WhseCode in (Select Code from " . env('SAGE_HOST_DB_NAME') . "WhseMst where ModemTel='SYNCTOSAT')");
         if (!is_null($products)) {
