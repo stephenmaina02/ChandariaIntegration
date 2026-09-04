@@ -15,58 +15,37 @@ class CustomerController extends Controller
 {
     public static function pushToSfa()
     {
-        //$customer = DB::table('customers')->latest()->where('status', 0)->first();
-        $customers = Customer::where('status', 0)->take(25)->get();
-        if (!is_null($customers)) {
-            $client = new Client(['verify'=>false]);
-            $acc = new AccessToken();
-            $accessToken = $acc->getTokenFromSFA();
+        $customers = Customer::where('status', 0)->orderBy('updated_at')->take(25)->get();
 
-            $headers = [
-                'Authorization' => 'Bearer ' . $accessToken,
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json'
-            ];
-            foreach ($customers as $customer) {
-                $response = $client->request('POST', env('SFA_BASE_URL') . '/api/v1/sap/sap-customers', [
-                    'headers' => $headers,
-                    'json' => [
-                        'name' => $customer->name,
-                        'region' => $customer->region,
-                        'location' => $customer->location,
-                        'account' => $customer->account,
-                        'category' => $customer->category,
-                        'phone_number' => $customer->phone_number,
-                        'customer_code' => $customer->customer_code,
-                        'customer_warehouse' => $customer->customer_warehouse,
-                        'pricelist_code' => $customer->pricelist_code,
-                        'credit_limit' => $customer->credit_limit,
-                        'email' => $customer->email,
-                        'latitude' => $customer->latitude,
-                        'longitude' => $customer->longitude,
-                        'kra_pin' => $customer->kra_pin,
-                        'contact_person' => $customer->contact_person,
-                        'postal_address' => $customer->postal_address,
-                        'discount_rate'=>$customer->discount,
-                    ]
-                ]);
-
-
-                if ($response->getStatusCode() == 200) {
-                    $updatecustomer = Customer::find($customer->id);
-                    $updatecustomer->status = 1;
-                    $updatecustomer->updated_at = Carbon::now();
-                    $updatecustomer->save();
-                    Log::info('Customer '.$customer->account.' posted to SFA');
-                } else {
-                    Log::error($response->getBody());
-                }
-            }
-            //log error in file or db table
+        if ($customers->isEmpty()) {
+            Log::info('No customer to send to SFA');
+            return;
         }
 
-        Log::info('No customer to send to SFA');
+        $client = self::sfaClient();
+        $headers = self::sfaHeaders();
+
+        foreach ($customers as $customer) {
+            if (!self::sendCustomerToSfa($customer, $client, $headers)) {
+                continue;
+            }
+
+            $now = Carbon::now();
+            $customer->status = 1;
+            $customer->updated_at = $now;
+
+            // This payload already carries discount_rate, so it settles any
+            // pending discount change too and keeps it off the discount queue.
+            if ($customer->discount_status == 0) {
+                $customer->discount_status = 1;
+                $customer->discount_synced_at = $now;
+            }
+
+            $customer->save();
+            Log::info('Customer ' . $customer->account . ' posted to SFA');
+        }
     }
+
     // public static function getCustomersFromSage()
     // {
     //     ini_set('max_execution_time', 2400);
@@ -147,5 +126,162 @@ class CustomerController extends Controller
                 
             }
         }
+    }
+
+    /**
+     * Compare every local customer's discount against Sage and flag the ones
+     * that drifted, so they can be pushed to SFA on their own track instead of
+     * queueing behind the general customer sync.
+     */
+    public static function syncDiscountsFromSage($account = null)
+    {
+        ini_set('max_execution_time', 2400);
+
+        $sql = "SELECT account, AutoDisc AS discount FROM " . env('SAGE_HOST_DB_NAME') . "[_bvARAccountsFull]
+                WHERE AreaDescription!='' AND GroupDescription!='' AND On_Hold=0";
+        $bindings = [];
+
+        if (!is_null($account)) {
+            $sql .= " AND account = ?";
+            $bindings[] = $account;
+        }
+
+        $sageDiscounts = [];
+        foreach (DB::select($sql, $bindings) as $row) {
+            $sageDiscounts[$row->account] = (float) $row->discount;
+        }
+
+        // A dropped Sage connection would otherwise look like "every discount is now 0".
+        if (empty($sageDiscounts)) {
+            Log::warning('Discount sync: Sage returned no customers, skipping run');
+            return 0;
+        }
+
+        $changed = 0;
+        $now = Carbon::now();
+
+        Customer::select('id', 'account', 'discount')
+            ->when(!is_null($account), function ($query) use ($account) {
+                return $query->where('account', $account);
+            })
+            ->chunkById(500, function ($customers) use ($sageDiscounts, $now, &$changed) {
+                foreach ($customers as $customer) {
+                    if (!array_key_exists($customer->account, $sageDiscounts)) {
+                        continue;
+                    }
+
+                    $sageDiscount = $sageDiscounts[$customer->account];
+
+                    if (abs((float) $customer->discount - $sageDiscount) < 0.0001) {
+                        continue;
+                    }
+
+                    Log::info("Discount changed for customer {$customer->account}: {$customer->discount} -> {$sageDiscount}");
+
+                    Customer::where('id', $customer->id)->update([
+                        'discount' => $sageDiscount,
+                        'discount_status' => 0,
+                        'discount_changed_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+
+                    $changed++;
+                }
+            });
+
+        return $changed;
+    }
+
+    public static function pushDiscountUpdatesToSfa($limit = 100)
+    {
+        // status=1 only: a customer still queued in pushToSfa will have its
+        // discount carried by that push, so sending it here as well is a duplicate.
+        $customers = Customer::where('discount_status', 0)
+            ->where('status', 1)
+            ->orderBy('discount_changed_at')
+            ->take($limit)
+            ->get();
+
+        if ($customers->isEmpty()) {
+            return 0;
+        }
+
+        $client = self::sfaClient();
+        $headers = self::sfaHeaders();
+        $pushed = 0;
+
+        foreach ($customers as $customer) {
+            if (!self::sendCustomerToSfa($customer, $client, $headers)) {
+                continue;
+            }
+
+            Customer::where('id', $customer->id)->update([
+                'discount_status' => 1,
+                'discount_synced_at' => Carbon::now(),
+            ]);
+
+            Log::info('Discount ' . $customer->discount . ' for customer ' . $customer->account . ' pushed to SFA');
+            $pushed++;
+        }
+
+        return $pushed;
+    }
+
+    protected static function sfaClient()
+    {
+        // http_errors off so a single rejected customer cannot abort the whole batch.
+        return new Client(['verify' => false, 'http_errors' => false]);
+    }
+
+    protected static function sfaHeaders()
+    {
+        return [
+            'Authorization' => 'Bearer ' . AccessToken::getTokenFromSFA(),
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ];
+    }
+
+    protected static function sendCustomerToSfa($customer, Client $client, array $headers)
+    {
+        try {
+            $response = $client->request('POST', env('SFA_BASE_URL') . '/api/v1/sap/sap-customers', [
+                'headers' => $headers,
+                'json' => self::sfaCustomerPayload($customer),
+            ]);
+
+            if ($response->getStatusCode() == 200) {
+                return true;
+            }
+
+            Log::error('SFA rejected customer ' . $customer->account . ' [' . $response->getStatusCode() . ']: ' . (string) $response->getBody());
+        } catch (\Throwable $e) {
+            Log::error('SFA push failed for customer ' . $customer->account . ': ' . $e->getMessage());
+        }
+
+        return false;
+    }
+
+    protected static function sfaCustomerPayload($customer)
+    {
+        return [
+            'name' => $customer->name,
+            'region' => $customer->region,
+            'location' => $customer->location,
+            'account' => $customer->account,
+            'category' => $customer->category,
+            'phone_number' => $customer->phone_number,
+            'customer_code' => $customer->customer_code,
+            'customer_warehouse' => $customer->customer_warehouse,
+            'pricelist_code' => $customer->pricelist_code,
+            'credit_limit' => $customer->credit_limit,
+            'email' => $customer->email,
+            'latitude' => $customer->latitude,
+            'longitude' => $customer->longitude,
+            'kra_pin' => $customer->kra_pin,
+            'contact_person' => $customer->contact_person,
+            'postal_address' => $customer->postal_address,
+            'discount_rate' => $customer->discount,
+        ];
     }
 }

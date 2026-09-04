@@ -26,6 +26,7 @@ class Kernel extends ConsoleKernel
         Commands\PushPromotion::class,
         Commands\GetPricelists::class,
         Commands\TruncatePricelist::class,
+        Commands\SyncCustomerDiscounts::class,
         Commands\GetOrderStatusFromSage::class,
 
     ];
@@ -52,6 +53,7 @@ class Kernel extends ConsoleKernel
         $schedule->command('command:getpricelistsfromsage')->hourly()->withoutOverlapping();
         $schedule->command('command:truncate_pricelist')->dailyAt('00:17')->withoutOverlapping();
         $schedule->command('command:getorderstatusfromsage')->everyThirtyMinutes()->withoutOverlapping();
+        $schedule->command('command:synccustomerdiscounts')->everyFiveMinutes()->withoutOverlapping();
 
     }
     /**
