@@ -53,6 +53,7 @@ class OrderTrackingController extends Controller
                     : $row->item_price;
 
                 return [
+                    'item_line_id'  => $row->item_line_id,
                     'item_code'     => $row->item_code,
                     'uom_code'      => $row->uom_code,
                     'item_quantity' => $row->item_quantity,
