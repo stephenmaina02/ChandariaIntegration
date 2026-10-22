@@ -17,20 +17,20 @@
             </thead>
             <tbody>
                 {{-- <tr>
-                    <td class="border h-12"><input wire:model="queryCode" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryName" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryCat" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryDesc" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryTaxcode" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryCode" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryName" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryCat" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryDesc" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryTaxcode" type="text" class="w-full border-2 m-auto h-full"></td>
                     <td class="border h-12">
-                        <select wire:model="product_status" class="w-full border-2 m-auto h-full">
+                        <select wire:model.live="product_status" class="w-full border-2 m-auto h-full">
                             <option value=""></option>
                             <option value="Active">Active</option>
                             <option value="Inactive">Inactive</option>
                         </select>
                     </td>
                     <td class="border h-12">
-                    <select wire:model="status" class="w-full border-2 m-auto h-full">
+                    <select wire:model.live="status" class="w-full border-2 m-auto h-full">
                         <option value=""></option>
                         <option value="0">Pending</option>
                         <option value="1">Posted</option>

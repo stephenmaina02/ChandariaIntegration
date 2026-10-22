@@ -17,13 +17,13 @@
             <tbody>
                 <tr>
 
-                    <td class="border h-12"><input wire:model="queryDelId" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryInvNum" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryVehicle" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryDelStatus" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryDelDate" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryDelId" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryInvNum" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryVehicle" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryDelStatus" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryDelDate" type="text" class="w-full border-2 m-auto h-full"></td>
                     <td></td>
-                    <td class="border h-12"><input wire:model="notes" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="notes" type="text" class="w-full border-2 m-auto h-full"></td>
                 </tr>
                 @if(count($deliveries)>0)
                 @foreach ($deliveries as $delivery)

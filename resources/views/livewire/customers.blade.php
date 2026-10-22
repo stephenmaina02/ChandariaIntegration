@@ -17,14 +17,14 @@
             </thead>
             <tbody>
                 {{-- <tr>
-                    <td class="border h-12"><input wire:model="queryCode" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryName" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryRegion" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryCat" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryCredit" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryPricel" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryCode" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryName" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryRegion" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryCat" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryCredit" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryPricel" type="text" class="w-full border-2 m-auto h-full"></td>
                     <td class="border h-12">
-                    <select wire:model="status" class="w-full border-2 m-auto h-full">
+                    <select wire:model.live="status" class="w-full border-2 m-auto h-full">
                         <option value=""></option>
                         <option value="0">Pending</option>
                         <option value="1">Posted</option>

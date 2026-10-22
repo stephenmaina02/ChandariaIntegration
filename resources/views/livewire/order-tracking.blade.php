@@ -13,11 +13,11 @@
             </thead>
             <tbody>
                 <tr>
-                    <td class="border h-12"><input wire:model="queryTranID" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryDocNum" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryTranID" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryDocNum" type="text" class="w-full border-2 m-auto h-full"></td>
                     <td class="border h-12"><input type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryDate" type="text" class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="status" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="queryDate" type="text" class="w-full border-2 m-auto h-full"></td>
+                    <td class="border h-12"><input wire:model.live="status" type="text" class="w-full border-2 m-auto h-full"></td>
                 </tr>
                 @if(count($orderstatus)>0)
                 @foreach ($orderstatus as $orderstate)

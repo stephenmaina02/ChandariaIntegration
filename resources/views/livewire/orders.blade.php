@@ -15,16 +15,16 @@
             </thead>
             <tbody>
                 <tr>
-                    <td class="border h-12"><input wire:model="queryID" type="text"
+                    <td class="border h-12"><input wire:model.live="queryID" type="text"
                             class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryRef" type="text"
+                    <td class="border h-12"><input wire:model.live="queryRef" type="text"
                             class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryDate" type="text"
+                    <td class="border h-12"><input wire:model.live="queryDate" type="text"
                             class="w-full border-2 m-auto h-full"></td>
-                    <td class="border h-12"><input wire:model="queryCust" type="text"
+                    <td class="border h-12"><input wire:model.live="queryCust" type="text"
                             class="w-full border-2 m-auto h-full"></td>
                     <td class="border h-12">
-                        <select wire:model="querySta" class="w-full border-2 m-auto h-full">
+                        <select wire:model.live="querySta" class="w-full border-2 m-auto h-full">
                             <option value=""></option>
                             <option value="0">New</option>
                             <option value="1">Inserted</option>
@@ -67,7 +67,7 @@
         </table>
     </div>
     @if ($invoiceDetailsModal)
-        <x-jet-dialog-modal wire:model="invoiceDetailsModal" id="invoiceDetailsModal">
+        <x-dialog-modal wire:model.live="invoiceDetailsModal" id="invoiceDetailsModal">
             <x-slot name="title">
                 {{ __(' Invoice Details') }}
             </x-slot>
@@ -100,6 +100,6 @@
             <x-slot name="footer">
 
             </x-slot>
-        </x-jet-dialog-modal>
+        </x-dialog-modal>
     @endif
 </div>
