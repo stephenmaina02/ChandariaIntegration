@@ -135,6 +135,7 @@ WHERE NOT EXISTS (SELECT 1 FROM dbo.migrations x WHERE x.migration = m.name);
 PRINT CONCAT(@@ROWCOUNT, ' migration record(s) added');
 
 COMMIT TRANSACTION;
+GO
 
--- Sanity check
+-- Sanity check (separate batch: the columns above do not exist when the first batch is compiled)
 SELECT id, name, owner_type, owner_id, grant_types, redirect_uris, revoked FROM dbo.oauth_clients;
